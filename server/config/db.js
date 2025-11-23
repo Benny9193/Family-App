@@ -17,6 +17,7 @@ const initDatabase = () => {
       password TEXT NOT NULL,
       full_name TEXT NOT NULL,
       avatar_color TEXT DEFAULT '#3B82F6',
+      avatar_url TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -95,6 +96,21 @@ const initDatabase = () => {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (family_id) REFERENCES families(id) ON DELETE CASCADE,
       FOREIGN KEY (created_by) REFERENCES users(id)
+    )
+  `);
+
+  // Note attachments table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS note_attachments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      note_id INTEGER NOT NULL,
+      filename TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      file_size INTEGER NOT NULL,
+      mime_type TEXT,
+      uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
     )
   `);
 

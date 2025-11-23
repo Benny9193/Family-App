@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useFamily } from '../context/FamilyContext';
-import { noteService } from '../services/api';
-import { FiPlus, FiEdit2, FiTrash2, FiX } from 'react-icons/fi';
+import { noteService, uploadService } from '../services/api';
+import { FiPlus, FiEdit2, FiTrash2, FiX, FiPaperclip, FiFile, FiDownload } from 'react-icons/fi';
 import { format } from 'date-fns';
 
 const Notes = () => {
@@ -9,6 +9,9 @@ const Notes = () => {
   const [notes, setNotes] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingNote, setEditingNote] = useState(null);
+  const [attachments, setAttachments] = useState({});
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
   const [formData, setFormData] = useState({
     title: '',
     content: '',
@@ -24,6 +27,18 @@ const Notes = () => {
     try {
       const data = await noteService.getNotes(currentFamily.id);
       setNotes(data);
+      // Load attachments for all notes
+      const attachmentPromises = data.map(note =>
+        uploadService.getAttachments(note.id)
+          .then(atts => ({ noteId: note.id, attachments: atts }))
+          .catch(() => ({ noteId: note.id, attachments: [] }))
+      );
+      const attachmentResults = await Promise.all(attachmentPromises);
+      const attachmentMap = {};
+      attachmentResults.forEach(({ noteId, attachments: atts }) => {
+        attachmentMap[noteId] = atts;
+      });
+      setAttachments(attachmentMap);
     } catch (error) {
       console.error('Failed to load notes:', error);
     }
@@ -35,12 +50,39 @@ const Notes = () => {
       if (editingNote) {
         await noteService.updateNote(editingNote.id, formData);
       } else {
-        await noteService.createNote({ ...formData, familyId: currentFamily.id });
+        const newNote = await noteService.createNote({ ...formData, familyId: currentFamily.id });
+        // If there's a file selected, upload it
+        if (fileInputRef.current?.files[0] && newNote.id) {
+          await handleFileUpload(newNote.id, fileInputRef.current.files[0]);
+        }
       }
       loadNotes();
       resetForm();
     } catch (error) {
       alert('Failed to save note');
+    }
+  };
+
+  const handleFileUpload = async (noteId, file) => {
+    setUploading(true);
+    try {
+      await uploadService.uploadAttachment(noteId, file);
+      loadNotes();
+    } catch (error) {
+      alert(error.response?.data?.error || 'Failed to upload file');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId, noteId) => {
+    if (confirm('Are you sure you want to delete this attachment?')) {
+      try {
+        await uploadService.deleteAttachment(attachmentId);
+        loadNotes();
+      } catch (error) {
+        alert('Failed to delete attachment');
+      }
     }
   };
 
@@ -103,10 +145,57 @@ const Notes = () => {
                 </div>
               </div>
               <p className="text-gray-600 text-sm whitespace-pre-wrap mb-3 line-clamp-6">{note.content}</p>
+
+              {/* Attachments */}
+              {attachments[note.id]?.length > 0 && (
+                <div className="mb-3 space-y-1">
+                  {attachments[note.id].map(att => (
+                    <div key={att.id} className="flex items-center justify-between bg-gray-50 px-2 py-1 rounded text-xs">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <FiFile className="flex-shrink-0" />
+                        <a
+                          href={`${window.location.origin}${att.file_path}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline truncate"
+                        >
+                          {att.original_name}
+                        </a>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteAttachment(att.id, note.id)}
+                        className="text-red-600 hover:text-red-700 ml-2"
+                      >
+                        <FiX />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="text-xs text-gray-400 pt-3 border-t border-gray-100">
                 <p>by {note.created_by_full_name}</p>
                 <p>Updated {format(new Date(note.updated_at), 'PPp')}</p>
               </div>
+
+              {/* Upload button for existing notes */}
+              {!editingNote && (
+                <div className="mt-2 pt-2 border-t border-gray-100">
+                  <label className="cursor-pointer text-xs text-primary-600 hover:text-primary-700 flex items-center">
+                    <FiPaperclip className="mr-1" />
+                    Attach File
+                    <input
+                      type="file"
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files[0]) {
+                          handleFileUpload(note.id, e.target.files[0]);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -145,9 +234,22 @@ const Notes = () => {
                 />
               </div>
 
+              {!editingNote && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Attach File (Optional)
+                  </label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
+                  />
+                </div>
+              )}
+
               <div className="flex gap-2 pt-4">
-                <button type="submit" className="btn-primary flex-1">
-                  {editingNote ? 'Update' : 'Create'}
+                <button type="submit" disabled={uploading} className="btn-primary flex-1 disabled:opacity-50">
+                  {uploading ? 'Uploading...' : editingNote ? 'Update' : 'Create'}
                 </button>
                 <button type="button" onClick={resetForm} className="btn-secondary flex-1">
                   Cancel

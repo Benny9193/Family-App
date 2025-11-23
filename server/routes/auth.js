@@ -102,7 +102,8 @@ router.post('/login',
           username: user.username,
           email: user.email,
           fullName: user.full_name,
-          avatarColor: user.avatar_color
+          avatarColor: user.avatar_color,
+          avatarUrl: user.avatar_url
         }
       });
     } catch (error) {
@@ -115,7 +116,7 @@ router.post('/login',
 // Get current user
 router.get('/me', authenticateToken, (req, res) => {
   try {
-    const user = db.prepare('SELECT id, username, email, full_name, avatar_color FROM users WHERE id = ?')
+    const user = db.prepare('SELECT id, username, email, full_name, avatar_color, avatar_url FROM users WHERE id = ?')
       .get(req.user.userId);
 
     if (!user) {
@@ -127,7 +128,8 @@ router.get('/me', authenticateToken, (req, res) => {
       username: user.username,
       email: user.email,
       fullName: user.full_name,
-      avatarColor: user.avatar_color
+      avatarColor: user.avatar_color,
+      avatarUrl: user.avatar_url
     });
   } catch (error) {
     console.error('Get user error:', error);

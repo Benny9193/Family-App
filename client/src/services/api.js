@@ -129,4 +129,35 @@ export const noteService = {
   },
 };
 
+// Upload service
+export const uploadService = {
+  uploadAvatar: async (file) => {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    const response = await api.post('/upload/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+
+  uploadAttachment: async (noteId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post(`/upload/attachment/${noteId}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+
+  getAttachments: async (noteId) => {
+    const response = await api.get(`/upload/attachments/${noteId}`);
+    return response.data;
+  },
+
+  deleteAttachment: async (attachmentId) => {
+    const response = await api.delete(`/upload/attachment/${attachmentId}`);
+    return response.data;
+  },
+};
+
 export default api;
